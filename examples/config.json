@@ -4,6 +4,9 @@
         "maxretries": 30,
         "retries-delay": 10
     },
+    "resolver": {
+        "port": 31300
+    },
     "pcp": {
         "port": 44323,
         "hostspec": "localhost",
@@ -41,6 +44,9 @@
                 "cgroup.cpuacct.stat.system",
                 "cgroup.memory.usage"
             ]
+        },
+        "schema-filters": {
+            "containers": "resolver"
         }
     }
 }
