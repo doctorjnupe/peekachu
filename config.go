@@ -2,10 +2,13 @@ package peekachu
 
 type Config struct {
 	Interval int16
-	Peekachu  struct {
+	Peekachu struct {
 		Timeout      int
 		MaxRetries   int
 		RetriesDelay int `json:"retries-delay"`
+	}
+	Resolver struct {
+		Port int16
 	}
 	Redis struct {
 		Host        string
@@ -21,6 +24,7 @@ type Config struct {
 		DisableCompression bool `json:"disable-compression"`
 		Database           string
 		Schema             map[string][]string
+		SchemaFilters      map[string]string `json:"schema-filters"`
 	}
 	Mesos struct {
 		Port uint16
