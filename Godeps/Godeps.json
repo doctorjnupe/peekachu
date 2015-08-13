@@ -1,0 +1,14 @@
+{
+	"ImportPath": "github.com/jameskyle/peekachu",
+	"GoVersion": "go1.4.2",
+	"Deps": [
+		{
+			"ImportPath": "github.com/golang/glog",
+			"Rev": "v0.3.4"
+		},
+		{
+			"ImportPath": "github.com/influxdb/influxdb/client",
+			"Rev": "v0.8.8"
+		}
+	]
+}

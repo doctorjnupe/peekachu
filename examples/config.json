@@ -1,0 +1,46 @@
+{
+    "peekachu": {
+        "timeout": 300,
+        "maxretries": 30,
+        "retries-delay": 10
+    },
+    "pcp": {
+        "port": 44323,
+        "hostspec": "localhost",
+        "context-polltimeout": 12
+    },
+    "mesos": {
+        "port": 31300
+    },
+    "redis": {
+        "host": "172.31.2.11",
+        "port": 31600,
+        "nodes": "charmander:nodes"
+    },
+    "influxdb": {
+        "host": "172.31.2.11",
+        "port": 31410,
+        "username": "root",
+        "password": "root",
+        "database": "charmander-dc",
+        "disable-compression": true,
+        "schema": {
+            "network": [
+                "network.interface.in.bytes",
+                "network.interface.out.bytes",
+                "network.interface.out.drops",
+                "network.interface.in.drops"
+            ],
+            "machine": [
+                "cgroup.cpuacct.stat.user",
+                "cgroup.cpuacct.stat.system",
+                "cgroup.memory.usage"
+            ],
+            "containers": [
+                "cgroup.cpuacct.stat.user",
+                "cgroup.cpuacct.stat.system",
+                "cgroup.memory.usage"
+            ]
+        }
+    }
+}
