@@ -151,7 +151,9 @@ func (pk *Peekachu) Write() error {
 				*/
 				var row map[string]interface{}
 				row = instanceMap[instance]
-				filteredName := pk.filterName(cache.Client.Host, tableName, instance)
+				row["instance"] = instance
+				row = pk.applyFilters(cache.Client, tableName, row)
+
 				if filteredName != "" { // if name is not filtered out
 					row["instance"] = filteredName
 					table.AddRowFromMap(row)
@@ -175,31 +177,57 @@ func (pk *Peekachu) Write() error {
 	return nil
 }
 
+func (pk *Peekachu) applyFilters(client *pcp.Client, tableName string, row RowMap) RowMap {
+	for idx, filter := range Filters.FilterNames() {
+		if tables, ok := pk.config.Influxdb.SchemaFilters[filter]; ok {
+			for _, table := range tables {
+				if table == tableName {
+					filterer := Filters.GetFilter(filter, client, pk)
+					row = filterer(tableName, row)
+				}
+			}
+		}
+	}
+	return row
+}
+
 func (pk *Peekachu) filterName(host, tableName, instanceName string) string {
 	result := instanceName
 	var err error
 
-	if _, ok := pk.config.Influxdb.SchemaFilters[tableName]; ok {
-		filterName := pk.config.Influxdb.SchemaFilters[tableName]
-		switch filterName {
-		case "resolver":
+	for _, filter := range FILTER_LIST {
+
+	}
+
+	if _, ok := pk.config.Influxdb.SchemaFilters[RESOLVER_KEY]; !ok {
+		return instanceName // no filter applied
+	}
+
+	for _, table := range pk.config.Influxdb.SchemaFilters[RESOLVER_KEY] {
+		if table == tableName {
+
 			resolver := Resolver{
 				Host: host,
 				Port: pk.config.Resolver.Port,
 			}
 			result, err = resolver.Resolve(instanceName)
-
+			glog.Infof("Resolving instance %s to %s\n", instanceName, result)
 			if err != nil {
 				glog.Errorf("Resolving instance name %s produced an error: %s\n",
 					instanceName, err,
 				)
 				result = instanceName
 			}
-		default:
-			glog.Errorf("Unknown filter specified: %s\n", filterName)
-			glog.Infoln("Ignoring filter, retaining data...")
 		}
 	}
+	/*filterName := pk.config.Influxdb.SchemaFilters[tableName]
+		switch filterName {
+		case "resolver":
+			default:
+			glog.Errorf("Unknown filter specified: %s\n", filterName)
+			glog.Warningln("Ignoring filter, retaining data...")
+		}
+	}*/
 	return result
 }
 
