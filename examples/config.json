@@ -4,7 +4,7 @@
         "maxretries": 30,
         "retries-delay": 10
     },
-    "resolver": {
+    "mesos-task-resolver": {
         "port": 31300
     },
     "pcp": {
@@ -46,7 +46,12 @@
             ]
         },
         "schema-filters": {
-            "containers": "resolver"
+            "mesos-task-filter": ["containers"]
+        },
+        "metric-filters": {
+            "derivative": [
+                "cgroup.memory.usage"
+            ]
         }
     }
 }

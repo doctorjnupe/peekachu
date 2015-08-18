@@ -44,7 +44,8 @@ func init() {
 }
 
 func main() {
-	glog.Info("Peekachu Data Collector Initialization...")
+	glog.Infoln("Peekachu Data Collector Initialization...")
+	glog.Infof("Loaded %d filters..\n", peekachu.Filters.Count())
 	pk, err := peekachu.NewPeekachu(config)
 	if err != nil {
 		glog.Fatalf("Failed to create Pickachu: %s\n", err)

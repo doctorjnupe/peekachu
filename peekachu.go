@@ -29,10 +29,10 @@ func NewClientCache(client *pcp.Client) *ClientCache {
 }
 
 type Peekachu struct {
-	Redis    *redis.Client
-	Influxdb *influx.Client
-	config   *Config
 	Clients  []*ClientCache
+	Influxdb *influx.Client
+	Redis    *redis.Client
+	config   *Config
 }
 
 func NewPeekachu(config *Config) (*Peekachu, error) {
@@ -151,10 +151,12 @@ func (pk *Peekachu) Write() error {
 				*/
 				var row map[string]interface{}
 				row = instanceMap[instance]
-				filteredName := pk.filterName(cache.Client.Host, tableName, instance)
-				if filteredName != "" { // if name is not filtered out
-					row["instance"] = filteredName
+				row["instance"] = instance
+				row = pk.applyFilters(cache.Client, tableName, row)
+				if row != nil {
 					table.AddRowFromMap(row)
+				} else {
+					glog.Infof("Row for instance %s filtered.\n", instance)
 				}
 			}
 			series := &influx.Series{
@@ -175,32 +177,43 @@ func (pk *Peekachu) Write() error {
 	return nil
 }
 
-func (pk *Peekachu) filterName(host, tableName, instanceName string) string {
-	result := instanceName
-	var err error
+func (pk *Peekachu) applyFilters(
+	client *pcp.Client,
+	tableName string,
+	row RowMap,
+) RowMap {
+	for _, filterName := range Filters.FilterNames() {
+		if tables, ok := pk.config.Influxdb.SchemaFilters[filterName]; ok {
+			for _, table := range tables {
+				if table == tableName {
+					filterer, err := Filters.GetFilter(filterName, client, pk)
 
-	if _, ok := pk.config.Influxdb.SchemaFilters[tableName]; ok {
-		filterName := pk.config.Influxdb.SchemaFilters[tableName]
-		switch filterName {
-		case "resolver":
-			resolver := Resolver{
-				Host: host,
-				Port: pk.config.Resolver.Port,
-			}
-			result, err = resolver.Resolve(instanceName)
+					if err != nil {
+						msg := "Error retrieving %s filter: %s\n"
+						glog.Errorf(msg, filterName, err)
+						glog.Warning("Filter will not be applied!")
+						break
+					}
 
-			if err != nil {
-				glog.Errorf("Resolving instance name %s produced an error: %s\n",
-					instanceName, err,
-				)
-				result = instanceName
+					filteredRow, err := filterer.Filter(tableName, row)
+
+					if err != nil {
+						msg := "Error applying %s filter: %s\n"
+						glog.Errorf(msg, filterName, err)
+					} else {
+						row = filteredRow
+					}
+
+					if row == nil {
+						// if row is nil, then the row has been filtered out
+						// and we don't need to apply anymore filters
+						return nil
+					}
+				}
 			}
-		default:
-			glog.Errorf("Unknown filter specified: %s\n", filterName)
-			glog.Infoln("Ignoring filter, retaining data...")
 		}
 	}
-	return result
+	return row
 }
 
 func (pk *Peekachu) startTimeout() *time.Timer {

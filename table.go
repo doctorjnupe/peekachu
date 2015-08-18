@@ -9,6 +9,7 @@ import (
 type Header []string
 
 type Row []interface{}
+type RowMap map[string]interface{}
 
 type Table struct {
 	Header Header
