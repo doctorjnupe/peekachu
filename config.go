@@ -7,9 +7,9 @@ type Config struct {
 		MaxRetries   int
 		RetriesDelay int `json:"retries-delay"`
 	}
-	Resolver struct {
+	MesosTaskResolver struct {
 		Port int16
-	}
+	} `json:"mesos-task-resolver"`
 	Redis struct {
 		Host        string
 		Port        uint16
@@ -24,7 +24,8 @@ type Config struct {
 		DisableCompression bool `json:"disable-compression"`
 		Database           string
 		Schema             map[string][]string
-		SchemaFilters      map[string]string `json:"schema-filters"`
+		SchemaFilters      map[string][]string `json:"schema-filters"`
+		MetricFilters      map[string][]string `json:"metric-filters"`
 	}
 	Mesos struct {
 		Port uint16
