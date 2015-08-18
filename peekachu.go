@@ -29,10 +29,10 @@ func NewClientCache(client *pcp.Client) *ClientCache {
 }
 
 type Peekachu struct {
-	Redis    *redis.Client
-	Influxdb *influx.Client
-	config   *Config
 	Clients  []*ClientCache
+	Influxdb *influx.Client
+	Redis    *redis.Client
+	config   *Config
 }
 
 func NewPeekachu(config *Config) (*Peekachu, error) {
@@ -153,10 +153,10 @@ func (pk *Peekachu) Write() error {
 				row = instanceMap[instance]
 				row["instance"] = instance
 				row = pk.applyFilters(cache.Client, tableName, row)
-
-				if filteredName != "" { // if name is not filtered out
-					row["instance"] = filteredName
+				if row != nil {
 					table.AddRowFromMap(row)
+				} else {
+					glog.Infof("Row for instance %s filtered.\n", instance)
 				}
 			}
 			series := &influx.Series{
@@ -177,58 +177,43 @@ func (pk *Peekachu) Write() error {
 	return nil
 }
 
-func (pk *Peekachu) applyFilters(client *pcp.Client, tableName string, row RowMap) RowMap {
-	for idx, filter := range Filters.FilterNames() {
-		if tables, ok := pk.config.Influxdb.SchemaFilters[filter]; ok {
+func (pk *Peekachu) applyFilters(
+	client *pcp.Client,
+	tableName string,
+	row RowMap,
+) RowMap {
+	for _, filterName := range Filters.FilterNames() {
+		if tables, ok := pk.config.Influxdb.SchemaFilters[filterName]; ok {
 			for _, table := range tables {
 				if table == tableName {
-					filterer := Filters.GetFilter(filter, client, pk)
-					row = filterer(tableName, row)
+					filterer, err := Filters.GetFilter(filterName, client, pk)
+
+					if err != nil {
+						msg := "Error retrieving %s filter: %s\n"
+						glog.Errorf(msg, filterName, err)
+						glog.Warning("Filter will not be applied!")
+						break
+					}
+
+					filteredRow, err := filterer.Filter(tableName, row)
+
+					if err != nil {
+						msg := "Error applying %s filter: %s\n"
+						glog.Errorf(msg, filterName, err)
+					} else {
+						row = filteredRow
+					}
+
+					if row == nil {
+						// if row is nil, then the row has been filtered out
+						// and we don't need to apply anymore filters
+						return nil
+					}
 				}
 			}
 		}
 	}
 	return row
-}
-
-func (pk *Peekachu) filterName(host, tableName, instanceName string) string {
-	result := instanceName
-	var err error
-
-	for _, filter := range FILTER_LIST {
-
-	}
-
-	if _, ok := pk.config.Influxdb.SchemaFilters[RESOLVER_KEY]; !ok {
-		return instanceName // no filter applied
-	}
-
-	for _, table := range pk.config.Influxdb.SchemaFilters[RESOLVER_KEY] {
-		if table == tableName {
-
-			resolver := Resolver{
-				Host: host,
-				Port: pk.config.Resolver.Port,
-			}
-			result, err = resolver.Resolve(instanceName)
-			glog.Infof("Resolving instance %s to %s\n", instanceName, result)
-			if err != nil {
-				glog.Errorf("Resolving instance name %s produced an error: %s\n",
-					instanceName, err,
-				)
-				result = instanceName
-			}
-		}
-	}
-	/*filterName := pk.config.Influxdb.SchemaFilters[tableName]
-		switch filterName {
-		case "resolver":
-			default:
-			glog.Errorf("Unknown filter specified: %s\n", filterName)
-			glog.Warningln("Ignoring filter, retaining data...")
-		}
-	}*/
-	return result
 }
 
 func (pk *Peekachu) startTimeout() *time.Timer {
