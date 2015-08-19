@@ -35,9 +35,9 @@
                 "network.interface.in.drops"
             ],
             "machine": [
-                "cgroup.cpuacct.stat.user",
-                "cgroup.cpuacct.stat.system",
-                "cgroup.memory.usage"
+                "kernel.all.cpu.user",
+                "kernel.all.cpu.sys",
+                "mem.util.used"
             ],
             "containers": [
                 "cgroup.cpuacct.stat.user",

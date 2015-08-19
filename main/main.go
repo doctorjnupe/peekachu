@@ -5,6 +5,7 @@ import (
 	"flag"
 	"io/ioutil"
 	"os"
+	"time"
 
 	"github.com/golang/glog"
 	"github.com/jameskyle/peekachu"
@@ -54,6 +55,10 @@ func main() {
 	// Wait for redis, die after timeout or max retries exceeded
 	pk.RedisConnectOrDie()
 	pk.RefreshClients()
-	pk.RefreshMetricValues()
-	pk.Write()
+
+	for i := 0; i < 30; i++ {
+		pk.RefreshMetricValues()
+		pk.Write()
+		time.Sleep(10 * time.Second)
+	}
 }
