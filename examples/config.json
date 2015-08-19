@@ -2,7 +2,9 @@
     "peekachu": {
         "timeout": 300,
         "maxretries": 30,
-        "retries-delay": 10
+        "retries-delay": 10,
+        "rate-limit": 5,
+        "client-refresh-rate": 4
     },
     "mesos-task-resolver": {
         "port": 31300

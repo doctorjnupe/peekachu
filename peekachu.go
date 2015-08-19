@@ -51,6 +51,14 @@ func NewPeekachu(config *Config) (*Peekachu, error) {
 	return &pk, nil
 }
 
+func (pk *Peekachu) RateLimit() time.Duration {
+	return time.Second * time.Duration(pk.config.Peekachu.RateLimit)
+}
+
+func (pk *Peekachu) ClientRefreshRate() int {
+	return pk.config.Peekachu.ClientRefreshRate
+}
+
 func (pk *Peekachu) initRedis() {
 
 	url := fmt.Sprintf("%s:%d", pk.config.Redis.Host, pk.config.Redis.Port)
