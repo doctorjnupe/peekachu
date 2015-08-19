@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/golang/glog"
-	"github.com/jameskyle/pcp"
 )
 
 const (
@@ -20,11 +19,11 @@ func init() {
 }
 
 type MesosTaskFilter struct {
-	Client *pcp.Client
+	Client *Client
 	Port   int16
 }
 
-func NewMesosTaskFilter(client *pcp.Client, pk *Peekachu) Filterer {
+func NewMesosTaskFilter(client *Client, pk *Peekachu) Filterer {
 	return &MesosTaskFilter{
 		Client: client,
 		Port:   pk.config.MesosTaskResolver.Port,
@@ -32,7 +31,7 @@ func NewMesosTaskFilter(client *pcp.Client, pk *Peekachu) Filterer {
 }
 
 func (r *MesosTaskFilter) hostString() string {
-	return fmt.Sprintf("http://%s:%d/getid/", r.Client.Host, r.Port)
+	return fmt.Sprintf("http://%s:%d/getid/", r.Client.PcpClient.Host, r.Port)
 }
 
 func (r *MesosTaskFilter) hostStringForId(id string) string {
@@ -55,11 +54,6 @@ func (r *MesosTaskFilter) Filter(tableName string, row RowMap) (RowMap, error) {
 		// the container id was not a docker id, so we filter the row out
 		return nil, nil
 	}
-	glog.Infof(
-		"Resolving name for container %s on host %s\n",
-		dockerId,
-		r.Client.Host,
-	)
 	resp, err := http.Get(r.hostStringForId(dockerId))
 
 	if err != nil {
@@ -73,7 +67,12 @@ func (r *MesosTaskFilter) Filter(tableName string, row RowMap) (RowMap, error) {
 		return nil, err
 	}
 	name := strings.TrimSpace(string(body[:]))
-	glog.Infof("Instance name resolved to: %s\n", name)
+	glog.V(3).Infof(
+		"Resolving name for container '%s' on host '%s' to '%s'\n",
+		dockerId,
+		r.Client.PcpClient.Host,
+		name,
+	)
 	row[FILTERED_FIELD_NAME] = name
 	return row, nil
 }

@@ -14,22 +14,22 @@ import (
 
 type MetricValueResponseMap map[string]pcp.MetricValueResponseList
 
-type ClientCache struct {
-	Client                    *pcp.Client
+type Client struct {
+	PcpClient                 *pcp.Client
 	Metrics                   pcp.MetricList
 	MetricValueResponses      MetricValueResponseMap
 	PriorMetricValueResponses MetricValueResponseMap
 }
 
-func NewClientCache(client *pcp.Client) *ClientCache {
-	cache := ClientCache{Client: client}
-	cache.MetricValueResponses = make(MetricValueResponseMap)
-	cache.PriorMetricValueResponses = make(MetricValueResponseMap)
-	return &cache
+func NewClient(pcpClient *pcp.Client) *Client {
+	client := Client{PcpClient: pcpClient}
+	client.MetricValueResponses = make(MetricValueResponseMap)
+	client.PriorMetricValueResponses = make(MetricValueResponseMap)
+	return &client
 }
 
 type Peekachu struct {
-	Clients  []*ClientCache
+	Clients  []*Client
 	Influxdb *influx.Client
 	Redis    *redis.Client
 	config   *Config
@@ -46,7 +46,7 @@ func NewPeekachu(config *Config) (*Peekachu, error) {
 		return nil, err
 	}
 
-	pk.Clients = []*ClientCache{}
+	pk.Clients = []*Client{}
 
 	return &pk, nil
 }
@@ -121,8 +121,8 @@ func (pk *Peekachu) Write() error {
 	var instanceMap map[string]map[string]interface{}
 	payload := []*influx.Series{}
 
-	for _, cache := range pk.Clients {
-		for tableName, responses := range cache.MetricValueResponses {
+	for _, client := range pk.Clients {
+		for tableName, responses := range client.MetricValueResponses {
 			table := Table{}
 			table.AddColumn("time")
 			table.AddColumn("instance")
@@ -135,7 +135,7 @@ func (pk *Peekachu) Write() error {
 
 			// Add the node and time values to each instance metric collection
 			for instance, _ := range instanceMap {
-				instanceMap[instance]["node"] = cache.Client.Host
+				instanceMap[instance]["node"] = client.PcpClient.Host
 
 				/*
 					the instanceMap is of a format:
@@ -149,14 +149,19 @@ func (pk *Peekachu) Write() error {
 
 					Which is added as a row to our table
 				*/
-				var row map[string]interface{}
+				var row RowMap
 				row = instanceMap[instance]
 				row["instance"] = instance
-				row = pk.applyFilters(cache.Client, tableName, row)
+				row = pk.applyFilters(client, tableName, row)
+
 				if row != nil {
 					table.AddRowFromMap(row)
 				} else {
-					glog.Infof("Row for instance %s filtered.\n", instance)
+					glog.V(3).Infof(
+						"Row for instance '%s' filtered from '%s' table.\n",
+						instance,
+						tableName,
+					)
 				}
 			}
 			series := &influx.Series{
@@ -177,8 +182,8 @@ func (pk *Peekachu) Write() error {
 	return nil
 }
 
-func (pk *Peekachu) applyFilters(
-	client *pcp.Client,
+func (pk *Peekachu) applyTableFilters(
+	client *Client,
 	tableName string,
 	row RowMap,
 ) RowMap {
@@ -213,6 +218,51 @@ func (pk *Peekachu) applyFilters(
 			}
 		}
 	}
+
+	return row
+}
+
+func (pk *Peekachu) applyMetricFilters(
+	client *Client,
+	tableName string,
+	row RowMap,
+) RowMap {
+	for _, filterName := range Filters.FilterNames() {
+		if _, ok := pk.config.Influxdb.MetricFilters[filterName]; ok {
+			filterer, err := Filters.GetFilter(filterName, client, pk)
+
+			if err != nil {
+				msg := "Error retrieving %s filter: %s\n"
+				glog.Errorf(msg, filterName, err)
+				glog.Warning("Filter will not be applied!")
+				break
+			}
+			filteredRow, err := filterer.Filter(tableName, row)
+
+			if err != nil {
+				glog.Errorf("Error applying filter: %s\n", err)
+				glog.Warning("Filter will not be applyed!")
+				break
+			} else {
+				row = filteredRow
+			}
+
+			if row == nil {
+				return nil
+			}
+
+		}
+	}
+	return row
+}
+
+func (pk *Peekachu) applyFilters(
+	client *Client,
+	tableName string,
+	row RowMap,
+) RowMap {
+	row = pk.applyMetricFilters(client, tableName, row)
+	row = pk.applyTableFilters(client, tableName, row)
 	return row
 }
 
@@ -280,7 +330,7 @@ func (pk *Peekachu) GetNodes() []string {
 }
 
 func (pk *Peekachu) RefreshClients() {
-	pk.Clients = []*ClientCache{}
+	pk.Clients = []*Client{}
 	nodes := pk.GetNodes()
 
 	timer := pk.startTimeout()
@@ -306,56 +356,74 @@ func (pk *Peekachu) RefreshClients() {
 	for _, node := range nodes {
 		context := pcp.NewContext("", pk.config.PCP.HostSpec)
 		context.PollTimeout = pk.config.PCP.ContextPollTimeout
-		client := pcp.NewClient(node, pk.config.PCP.Port, context)
-		client.RefreshContext()
+		pcpClient := pcp.NewClient(node, pk.config.PCP.Port, context)
+		pcpClient.RefreshContext()
 		mquery := pcp.NewMetricQuery("")
-		metrics, err := client.Metrics(mquery)
+		metrics, err := pcpClient.Metrics(mquery)
 		if err != nil {
 			glog.Errorf("Error fetching metrics for client: %s", err)
 		}
-		cache := NewClientCache(client)
-		cache.Metrics = metrics
-		pk.Clients = append(pk.Clients, cache)
+		client := NewClient(pcpClient)
+		client.Metrics = metrics
+		pk.Clients = append(pk.Clients, client)
 	}
 }
 
 func (pk *Peekachu) refreshMetricValuesForClient(
-	cache *ClientCache,
+	client *Client,
 	table string,
 	names []string,
 ) {
 
-	glog.Infof("Fetching metric values for host %s...", cache.Client.Host)
+	glog.V(3).Infof("Fetching metric values for host %s...", client.PcpClient.Host)
 	query := pcp.NewMetricValueQuery(names, []string{})
 
-	if resp, err := cache.Client.MetricValues(query); err != nil {
+	if resp, err := client.PcpClient.MetricValues(query); err != nil {
 		msg := "Failed to retrieve metric values from host %s : %s\n"
-		glog.Errorf(msg, cache.Client.Host, err)
+		glog.Errorf(msg, client.PcpClient.Host, err)
 	} else {
-		cache.PriorMetricValueResponses = cache.MetricValueResponses
+		for _, value := range resp.Values {
+			metric := client.Metrics.FindMetricByName(value.MetricName)
+			indom, err := client.PcpClient.GetIndomForMetric(metric)
 
-		cache.MetricValueResponses[table] = append(
-			cache.MetricValueResponses[table],
+			if err != nil {
+				glog.Errorf(
+					"Failed to get indom for metric '%s' with instance domain '%d': %s\n",
+					metric.Name,
+					metric.Indom,
+					err,
+				)
+				glog.Errorln("Refusing to update value due to prior errors.")
+			} else {
+				value.UpdateInstanceNames(indom)
+			}
+		}
+
+		client.MetricValueResponses[table] = append(
+			client.MetricValueResponses[table],
 			resp,
 		)
 
-		for _, value := range resp.Values {
-			// FIXME: probably ought to name MetricValue.Name to
-			//		  MetricValue.MetricName for clarity
-			metric := cache.Metrics.FindMetricByName(value.MetricName)
-			indom, err := cache.Client.GetIndomForMetric(metric)
-			if err != nil {
-				glog.Errorf("Failed to get indom for metric: %s\n", err)
-			}
-			value.UpdateInstanceNames(indom)
-		}
+	}
+}
+
+func (pk *Peekachu) cacheAndClearClientResponses() {
+
+	for _, client := range pk.Clients {
+		// cache current metrics
+		client.PriorMetricValueResponses = client.MetricValueResponses
+		// clear current metrics
+		client.MetricValueResponses = make(MetricValueResponseMap)
 	}
 }
 
 func (pk *Peekachu) RefreshMetricValues() {
+	glog.Infof("Fetching metric values for hosts...")
+	pk.cacheAndClearClientResponses()
+
 	for table, metricNames := range pk.config.Influxdb.Schema {
-		for _, cache := range pk.Clients {
-			pk.refreshMetricValuesForClient(cache, table, metricNames)
+		for _, client := range pk.Clients {
+			pk.refreshMetricValuesForClient(client, table, metricNames)
 		}
 	}
 }

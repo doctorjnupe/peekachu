@@ -5,14 +5,13 @@ import (
 	"fmt"
 
 	"github.com/golang/glog"
-	"github.com/jameskyle/pcp"
 )
 
 var Filters = FilterListType{
 	plugins: make(map[string]FilterFactory),
 }
 
-type FilterFactory func(*pcp.Client, *Peekachu) Filterer
+type FilterFactory func(*Client, *Peekachu) Filterer
 
 type FilterListType struct {
 	plugins map[string]FilterFactory
@@ -33,7 +32,7 @@ func (t *FilterListType) FilterNames() []string {
 
 func (t *FilterListType) GetFilter(
 	key string,
-	client *pcp.Client,
+	client *Client,
 	pk *Peekachu,
 ) (Filterer, error) {
 	if _, ok := t.plugins[key]; !ok {
