@@ -29,7 +29,7 @@ func (d *DerivativeFilter) filteredMetrics() []string {
 }
 
 func (d *DerivativeFilter) calcDerivative(v1, v2 int64, t1, t2 int64) int64 {
-	glog.Infof("Calculating: (%d - %d) / (%d - %d)\n", v2, v1, t2, t1)
+	glog.V(3).Infof("Calculating: (%d - %d) / (%d - %d)\n", v2, v1, t2, t1)
 	var result int64
 	vdelta := v2 - v1
 	tdelta := t2 - t1
@@ -63,8 +63,10 @@ func (d *DerivativeFilter) Filter(tableName string, row RowMap) (RowMap, error) 
 						int64(row[TIME_KEY].(uint64)),
 						int64(instanceValues[TIME_KEY].(uint64)),
 					)
+					msg := "Setting cumulative value '%f' to derivative "
+					msg += "value '%d' for instance '%s'\n"
+					glog.V(3).Infof(msg, row[key], derivative, row[INSTANCE_KEY])
 					row[key] = derivative
-					glog.Infof("New Row: %v\n", row)
 				}
 			}
 		}
