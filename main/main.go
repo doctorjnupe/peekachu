@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"github.com/jameskyle/peekachu"
+	"github.com/doctorjnupe/peekachu"
 )
 
 var configFile string
