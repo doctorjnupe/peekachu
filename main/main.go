@@ -9,6 +9,8 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/doctorjnupe/peekachu"
+	
+	"gopkg.in/matryer/try.v1"
 )
 
 var configFile string
@@ -37,9 +39,17 @@ func init() {
 func main() {
 	glog.Infoln("Peekachu Data Collector Initialization...")
 	glog.Infof("Loaded %d filters..\n", peekachu.Filters.Count())
-	pk, err := peekachu.NewPeekachu(config)
+
+	err := try.Do(func(attempt int) (bool, error) {
+	    pk, err := peekachu.NewPeekachu(config)
+	    if err != nil {
+	        time.Sleep(5 * time.Second) // wait 5 secs.
+		glog.Infof("Failed to crate Pickachu(retry): %s\n", err(
+ 	    }
+	    return attempt < 120, err //try 5 times
+	})
 	if err != nil {
-		glog.Fatalf("Failed to create Pickachu: %s\n", err)
+            glog.Fatalf("Failed to create Pickachu(all retry attempts failed): %s\n", err)
 	}
 	defer pk.Close()
 	// Wait for redis, die after timeout or max retries exceeded
