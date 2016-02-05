@@ -45,28 +45,28 @@ func main() {
 	    if err != nil {
 	        time.Sleep(5 * time.Second) // wait 5 secs.
 		glog.Infof("Failed to crate Pickachu(retry): %s\n", err)
- 	    }
-	    return attempt < 120, err //try 5 times
-	})
-	if err != nil {
-            glog.Fatalf("Failed to create Pickachu(all retry attempts failed): %s\n", err)
-	}
-	defer pk.Close()
-	// Wait for redis, die after timeout or max retries exceeded
-	pk.RedisConnectOrDie()
-	pk.RefreshClients()
+ 	    } else {
+ 	    	defer pk.Close()
+	        // Wait for redis, die after timeout or max retries exceeded
+	        pk.RedisConnectOrDie()
+   	        pk.RefreshClients()
 
-	throttle := time.Tick(pk.RateLimit())
-	count := 1
+	        throttle := time.Tick(pk.RateLimit())
+	        count := 1
 
-	for {
-		if count%pk.ClientRefreshRate() == 0 {
-			pk.RefreshClients()
+	       for {
+		    if count%pk.ClientRefreshRate() == 0 {
+		        pk.RefreshClients()
 			count = 0
-		}
+		    }
 		pk.RefreshMetricValues()
 		pk.Write()
 		<-throttle
 		count += 1
+	    }
+	    return attempt < 120, err //try 5 times
+	})
+	if err != nil {
+            glog.Fatalf("Failed to create Pickachu(all retry attempts failed): %s\n", err)
 	}
 }
