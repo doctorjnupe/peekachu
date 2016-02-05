@@ -44,7 +44,7 @@ func main() {
 	    pk, err := peekachu.NewPeekachu(config)
 	    if err != nil {
 	        time.Sleep(5 * time.Second) // wait 5 secs.
-		glog.Infof("Failed to crate Pickachu(retry): %s\n", err(
+		glog.Infof("Failed to crate Pickachu(retry): %s\n", err)
  	    }
 	    return attempt < 120, err //try 5 times
 	})
