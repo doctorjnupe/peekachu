@@ -7,7 +7,7 @@ import (
 
 	"github.com/golang/glog"
 	influx "github.com/influxdb/influxdb/client"
-	"github.com/jameskyle/pcp"
+	"github.com/doctorjnupe/pcp"
 
 	"gopkg.in/redis.v3"
 )
