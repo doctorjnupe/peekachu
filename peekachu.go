@@ -387,7 +387,7 @@ func (pk *Peekachu) refreshMetricValuesForClient(
 	query := pcp.NewMetricValueQuery(names, []string{})
 
 	if resp, err := client.PcpClient.MetricValues(query); err != nil {
-		msg := "Failed to retrieve metric values from host %s : %s\n"
+		msg := "Failed to retrieve metric values from host %s : %s : %#v\n"
 		glog.Errorf(msg, client.PcpClient.Host, err)
 	} else {
 		for _, value := range resp.Values {
